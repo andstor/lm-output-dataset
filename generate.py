@@ -363,10 +363,10 @@ def main():
             fp.flush()
 
     fp.close()
-    progress_bar.close()
 
-    # accelerator.wait_for_everyone()
-    # if accelerator.is_main_process:
+    accelerator.wait_for_everyone()
+    
+    progress_bar.close()
 
 
 if __name__ == "__main__":
