@@ -208,6 +208,7 @@ def main():
     )
     # model = model.to(accelerator.device) # TODO: check if this is needed
 
+    generation_config = {}
     if args.generation_config_file is not None:
         # read from file
         with open(args.generation_config_file, "r") as f:
@@ -219,8 +220,6 @@ def main():
 
     # Write the model config and generation config to disk
     if accelerator.is_main_process:
-        generation_config = {}
-
         with open(Path(args.output_dir, args.model_name_or_path, "model_config_diff.json"), "w") as f:
             json.dump(config.to_diff_dict(), f, indent=4)
 
