@@ -213,29 +213,30 @@ def main():
         generation_config = {}
 
         with open(Path(args.output_dir, args.model_name_or_path, "model_config_diff.json"), "w") as f:
-            json.dump(model.config.to_diff_dict(), f, indent=4)
+            json.dump(config.to_diff_dict(), f, indent=4)
 
         with open(Path(args.output_dir, args.model_name_or_path, "model_config.json"), "w") as f:
-            json.dump(model.config.to_dict(), f, indent=4)
+            json.dump(config.to_dict(), f, indent=4)
 
 
         if args.generation_config_file is not None:
             # read from file
             with open(args.generation_config_file, "r") as f:
                 generation_config = json.load(f)
-                generation_config = GenerationConfig.from_dict(generation_config).to_diff_dict()
+                generation_config = GenerationConfig.from_dict(generation_config)
         elif args.model_name_or_path:
-            generation_config = model.generation_config.to_diff_dict()
+            generation_config = model.generation_config
         
         # Dump the generation config without defaults to disk
         with open(Path(args.output_dir, args.model_name_or_path, "generation_config_diff.json"), "w") as f:
-            json.dump(generation_config, f, indent=4)
+            json.dump(generation_config.to_diff_dict(), f, indent=4)
 
         # Dump the generation config with defaults to disk
         with open(Path(args.output_dir, args.model_name_or_path, "generation_config.json"), "w") as f:
-            complete_generation_config = GenerationConfig.from_dict(generation_config).to_dict()
-            json.dump(complete_generation_config, f, indent=4)
+            json.dump(generation_config.to_dict(), f, indent=4)
 
+
+    print("generation_config: ", generation_config)
 
     # Preprocessing the datasets.
     column_names = raw_datasets[args.dataset_split].column_names
@@ -320,14 +321,11 @@ def main():
         with torch.no_grad():
             # generate the data
 
-            print("generation_config")
-            print(generation_config)
-
             generated = model.generate(
                 input_ids=prompt_ids,
                 attention_mask=attention_mask,
                 pad_token_id=tokenizer.eos_token_id,
-                generation_config=args.generation_config_file,
+                generation_config=generation_config,
                 max_new_tokens=args.max_new_tokens,
             )
 
