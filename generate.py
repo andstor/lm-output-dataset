@@ -218,19 +218,22 @@ def main():
         generation_config = model.generation_config
     
     tag = args.tag if args.tag is not None else ""
-    save_dir = Path(args.output_dir, args.model_name_or_path, tag)
-    save_dir.mkdir(parents=True, exist_ok=True)
+    if accelerator.is_main_process:
+        safe_dataset_config_name = args.dataset_config_name.replace("/", "_")
+        save_dir = Path(args.output_dir, args.model_name_or_path, safe_dataset_config_name, tag)
+        save_dir.mkdir(parents=True, exist_ok=True)
+    accelerator.wait_for_everyone()
 
     # Write the model config and generation config to disk
     if accelerator.is_main_process:
         print(generation_config)
 
         # Dump the model config without defaults to disk
-        with open( save_dir.parent / "model_config_diff.json", "w") as f:
+        with open( save_dir.parent.parent / "model_config_diff.json", "w") as f:
             json.dump(config.to_diff_dict(), f, indent=4)
 
         # Dump the model config with defaults to disk
-        with open(save_dir.parent / "model_config.json", "w") as f:
+        with open(save_dir.parent.parent / "model_config.json", "w") as f:
             json.dump(config.to_dict(), f, indent=4)
 
         # Dump the generation config without defaults to disk
@@ -254,7 +257,7 @@ def main():
     max_input_length = min(args.max_input_length,
                            model.config.max_position_embeddings)
     max_input_length = max_input_length - args.max_new_tokens
-    min_input_length = args.max_new_tokens * 2
+    min_input_length = args.max_new_tokens * 2 # TODO: check if this is a good value
     
     # Tokenize the data
     def tokenize_function(examples):        
