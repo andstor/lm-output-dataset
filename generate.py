@@ -224,7 +224,7 @@ def main():
             with open(args.generation_config_file, "r") as f:
                 generation_config = json.load(f)
         elif args.model_name_or_path:
-            generation_config = model.generation_config.to_dict()
+            generation_config = model.generation_config.to_diff_dict()
         
         # Dump the generation config without defaults to disk
         with open(Path(args.output_dir, args.model_name_or_path, "generation_config.json"), "w") as f:
