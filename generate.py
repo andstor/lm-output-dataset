@@ -319,7 +319,7 @@ def main():
     fp = open(path, 'w')
 
     # Only show the progress bar once on each machine.
-    progress_bar = tqdm(range(len(dataset)), position=accelerator.process_index) #,disable=not accelerator.is_local_main_process)
+    progress_bar = tqdm(range(len(data_loader)), position=accelerator.process_index) #,disable=not accelerator.is_local_main_process)
     for batch in data_loader:
         # tokenize the data
         # encodings = tokenizer(batch[text_column], return_tensors="pt", padding=True, truncation=True, max_length=max_input_length).to(device)
