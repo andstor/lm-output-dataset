@@ -218,25 +218,27 @@ def main():
         generation_config = model.generation_config
     
     tag = args.tag if args.tag is not None else ""
+    save_dir = Path(args.output_dir, args.model_name_or_path, tag)
+    save_dir.mkdir(parents=True, exist_ok=True)
 
     # Write the model config and generation config to disk
     if accelerator.is_main_process:
         print(generation_config)
 
         # Dump the model config without defaults to disk
-        with open(Path(args.output_dir, args.model_name_or_path, "model_config_diff.json"), "w") as f:
+        with open( save_dir.parent / "model_config_diff.json", "w") as f:
             json.dump(config.to_diff_dict(), f, indent=4)
 
         # Dump the model config with defaults to disk
-        with open(Path(args.output_dir, args.model_name_or_path, "model_config.json"), "w") as f:
+        with open(save_dir.parent / "model_config.json", "w") as f:
             json.dump(config.to_dict(), f, indent=4)
 
         # Dump the generation config without defaults to disk
-        with open(Path(args.output_dir, args.model_name_or_path, tag, "generation_config_diff.json"), "w") as f:
+        with open(save_dir / "generation_config_diff.json", "w") as f:
             json.dump(generation_config.to_diff_dict(), f, indent=4)
 
         # Dump the generation config with defaults to disk
-        with open(Path(args.output_dir, args.model_name_or_path, tag, "generation_config.json"), "w") as f:
+        with open(save_dir / "generation_config.json", "w") as f:
             json.dump(generation_config.to_dict(), f, indent=4)
 
 
@@ -301,9 +303,7 @@ def main():
     i = "{:05n}".format(accelerator.process_index + 1)
     n = "{:05n}".format(accelerator.num_processes)
 
-    path = Path(args.output_dir, args.model_name_or_path, tag,
-                f"{i}-of-{n}" + f".{args.dataset_split}.jsonl")
-    path.parent.mkdir(exist_ok=True, parents=True)
+    path = save_dir / f"{i}-of-{n}" + f".{args.dataset_split}.jsonl"
     fp = open(path, 'w')
 
     # Only show the progress bar once on each machine.
