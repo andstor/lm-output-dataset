@@ -223,6 +223,7 @@ def main():
             # read from file
             with open(args.generation_config_file, "r") as f:
                 generation_config = json.load(f)
+                generation_config = GenerationConfig.from_dict(generation_config).to_diff_dict()
         elif args.model_name_or_path:
             generation_config = model.generation_config.to_diff_dict()
         
