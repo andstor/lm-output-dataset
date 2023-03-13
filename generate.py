@@ -217,6 +217,7 @@ def main():
     elif args.model_name_or_path:
         generation_config = model.generation_config
     
+    tag = args.tag if args.tag is not None else ""
 
     # Write the model config and generation config to disk
     if accelerator.is_main_process:
@@ -231,11 +232,11 @@ def main():
             json.dump(config.to_dict(), f, indent=4)
 
         # Dump the generation config without defaults to disk
-        with open(Path(args.output_dir, args.model_name_or_path, "generation_config_diff.json"), "w") as f:
+        with open(Path(args.output_dir, args.model_name_or_path, tag, "generation_config_diff.json"), "w") as f:
             json.dump(generation_config.to_diff_dict(), f, indent=4)
 
         # Dump the generation config with defaults to disk
-        with open(Path(args.output_dir, args.model_name_or_path, "generation_config.json"), "w") as f:
+        with open(Path(args.output_dir, args.model_name_or_path, tag, "generation_config.json"), "w") as f:
             json.dump(generation_config.to_dict(), f, indent=4)
 
 
@@ -268,7 +269,8 @@ def main():
         )
 
         filtered_datasets = tokenized_datasets.filter(
-            lambda example: len(example["input_ids"]) >= min_input_length
+            lambda example: len(example["input_ids"]) >= min_input_length,
+            num_proc=args.preprocessing_num_workers,
         )
         # dataset = tokenized_datasets.with_format("torch", columns=[text_column], output_all_columns=True)
 
@@ -291,15 +293,13 @@ def main():
                              collate_fn=data_collator, batch_size=args.per_device_batch_size)
 
     # Prepare everything with `accelerator`.
-    model, data_loader = accelerator.prepare(
-        model, data_loader)
+    model, data_loader = accelerator.prepare(model, data_loader)
     #model, data_loader = accelerator.prepare(
     #    model, data_loader, device_placement=[True, False])
 
     # save the data
     i = "{:05n}".format(accelerator.process_index + 1)
     n = "{:05n}".format(accelerator.num_processes)
-    tag = args.tag if args.tag is not None else ""
 
     path = Path(args.output_dir, args.model_name_or_path, tag,
                 f"{i}-of-{n}" + f".{args.dataset_split}.jsonl")
@@ -310,7 +310,6 @@ def main():
     progress_bar = tqdm(range(len(dataset)),
                         disable=not accelerator.is_local_main_process)
     for batch in data_loader:
-
         # tokenize the data
         # encodings = tokenizer(batch[text_column], return_tensors="pt", padding=True, truncation=True, max_length=max_input_length).to(device)
         prompt_ids = batch["input_ids"][:, -max_input_length:][:, :args.max_new_tokens]
@@ -339,10 +338,12 @@ def main():
 
         # save the data to disk
         for index in range(generated.shape[0]):
-            colnames = batch.keys()
-            entry = {colname: batch[colname][index] for colname in colnames}
-            entry.pop('input_ids', None)
-            entry.pop('attention_mask', None)
+            # print("saving..."):
+            #colnames = batch.keys()
+            #entry = {colname: batch[colname][index] for colname in colnames}
+            entry = {"text": batch[text_column_name][index]}
+            #entry.pop('input_ids', None)
+            #entry.pop('attention_mask', None)
             entry["prompt"] = decoded_prompts[index]
             entry["output"] = decoded_outputs[index]
             entry["ended"] = outputs_ids[index][-1].item() == tokenizer.eos_token_id
