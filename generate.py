@@ -212,10 +212,10 @@ def main():
     if accelerator.is_main_process:
         generation_config = {}
 
-        with open(Path(args.output_dir, args.model_name_or_path, "model_config.json"), "w") as f:
+        with open(Path(args.output_dir, args.model_name_or_path, "model_config_diff.json"), "w") as f:
             json.dump(model.config.to_diff_dict(), f, indent=4)
 
-        with open(Path(args.output_dir, args.model_name_or_path, "model_config_complete.json"), "w") as f:
+        with open(Path(args.output_dir, args.model_name_or_path, "model_config.json"), "w") as f:
             json.dump(model.config.to_dict(), f, indent=4)
 
 
@@ -227,11 +227,11 @@ def main():
             generation_config = model.generation_config.to_diff_dict()
         
         # Dump the generation config without defaults to disk
-        with open(Path(args.output_dir, args.model_name_or_path, "generation_config.json"), "w") as f:
+        with open(Path(args.output_dir, args.model_name_or_path, "generation_config_diff.json"), "w") as f:
             json.dump(generation_config, f, indent=4)
 
         # Dump the generation config with defaults to disk
-        with open(Path(args.output_dir, args.model_name_or_path, "generation_config_complete.json"), "w") as f:
+        with open(Path(args.output_dir, args.model_name_or_path, "generation_config.json"), "w") as f:
             complete_generation_config = GenerationConfig.from_dict(generation_config).to_dict()
             json.dump(complete_generation_config, f, indent=4)
 
