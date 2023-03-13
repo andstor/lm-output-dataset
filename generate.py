@@ -265,14 +265,15 @@ def main():
             tokenize_function,
             batched=True,
             num_proc=args.preprocessing_num_workers,
-            # remove_columns=column_names,
             load_from_cache_file=not args.overwrite_cache,
             desc="Running tokenizer on dataset",
         )
 
         filtered_datasets = tokenized_datasets.filter(
             lambda example: len(example["input_ids"]) >= min_input_length,
+            batched=True,
             num_proc=args.preprocessing_num_workers,
+            load_from_cache_file=not args.overwrite_cache,
             desc="Filtering min length",
         )
         # dataset = tokenized_datasets.with_format("torch", columns=[text_column], output_all_columns=True)
