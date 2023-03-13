@@ -297,6 +297,7 @@ def main():
 
     # Prepare everything with `accelerator`.
     model, data_loader = accelerator.prepare(model, data_loader)
+    model = accelerator.unwrap_model(model)
     #model, data_loader = accelerator.prepare(
     #    model, data_loader, device_placement=[True, False])
 
