@@ -21,9 +21,9 @@ from transformers import (
     get_scheduler,
 )
 import os
+import urllib.parse
 import logging
 from accelerate.logging import get_logger
-
 get_logger("transformers").setLevel(logging.ERROR)
 logger = get_logger(__name__)
 
@@ -128,7 +128,7 @@ def parse_args():
     parser.add_argument(
         "--max_input_length",
         type=int,
-        default=math.inf,
+        default=None,
         help="The maximum number of tokens in the input."
     )
 
@@ -137,7 +137,7 @@ def parse_args():
     # Sanity checks
     if args.dataset_name is None:
         raise ValueError("Need a dataset name.")
-
+    
     return args
 
 
@@ -147,23 +147,35 @@ def main():
     """
 
     args = parse_args()
+
+    # Initialize accelerator
     accelerator = Accelerator()
 
     if args.seed is not None:
         set_seed(args.seed)
 
-    # Initialize accelerator
 
     # Write the generation config to disk
     if accelerator.is_main_process:
         if args.output_dir is not None:
-            p = Path(args.output_dir, args.model_name_or_path)
-            p.mkdir(parents=True, exist_ok=True)
+            safe_dataset_name = urllib.parse.quote(args.dataset_name, safe='')
+            #urlencode args.dataset_name
+            safe_model_name = urllib.parse.quote(args.model_name_or_path, safe='')
+            save_dir = Path(args.output_dir, safe_model_name, safe_dataset_name, args.tag)
+            save_dir.mkdir(parents=True, exist_ok=True)
         else:
             raise ValueError("Need a output directory.")
-
     accelerator.wait_for_everyone()
 
+    if accelerator.is_main_process:
+        # write args to disk
+        with open( save_dir / "args.json", "w") as f:
+            json.dump(args.__dict__, f, indent=4)
+    
+    if args.max_input_length is None:
+        args.max_input_length = math.inf
+
+        # 
     # Load the dataset
     # In distributed training, the load_dataset function guarantee that only one local process can concurrently
     # download the dataset.
@@ -216,13 +228,6 @@ def main():
             generation_config = GenerationConfig.from_dict(generation_config)
     elif args.model_name_or_path:
         generation_config = model.generation_config
-    
-    tag = args.tag if args.tag is not None else ""
-    if accelerator.is_main_process:
-        safe_dataset_config_name = args.dataset_config_name.replace("/", "_")
-        save_dir = Path(args.output_dir, args.model_name_or_path, safe_dataset_config_name, tag)
-        save_dir.mkdir(parents=True, exist_ok=True)
-    accelerator.wait_for_everyone()
 
     # Write the model config and generation config to disk
     if accelerator.is_main_process:
