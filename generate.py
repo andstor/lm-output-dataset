@@ -231,7 +231,7 @@ def main():
 
         # Dump the generation config with defaults to disk
         with open(Path(args.output_dir, args.model_name_or_path, "generation_config_complete.json"), "w") as f:
-            complete_generation_config = GenerationConfig.from_dict(generation_config)
+            complete_generation_config = GenerationConfig.from_dict(generation_config).to_dict()
             json.dump(complete_generation_config, f, indent=4)
 
 
