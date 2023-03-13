@@ -69,7 +69,7 @@ def parse_args():
         help="Pretrained config name or path if not the same as model_name",
     )
     parser.add_argument(
-        "--generation_config_name",
+        "--generation_config_file",
         type=str,
         default=None,
         help="Generation config path if not the same as model_name",
@@ -211,9 +211,9 @@ def main():
     if accelerator.is_main_process:
         generation_config = {}
 
-        if args.generation_config_name is not None:
+        if args.generation_config_file is not None:
             # read from file
-            with open(args.generation_config_name, "r") as f:
+            with open(args.generation_config_file, "r") as f:
                 generation_config = json.load(f)
         elif args.model_name_or_path:
             generation_config = model.generation_config.to_dict()
@@ -298,7 +298,7 @@ def main():
                 input_ids=input_ids,
                 attention_mask=attention_mask,
                 pad_token_id=tokenizer.eos_token_id,
-                generation_config=args.generation_config_name,
+                generation_config=args.generation_config_file,
                 max_new_tokens=args.max_new_tokens,
             )
 
