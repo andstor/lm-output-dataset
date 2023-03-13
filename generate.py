@@ -220,9 +220,13 @@ def main():
 
     # Write the model config and generation config to disk
     if accelerator.is_main_process:
+        print(generation_config)
+
+        # Dump the model config without defaults to disk
         with open(Path(args.output_dir, args.model_name_or_path, "model_config_diff.json"), "w") as f:
             json.dump(config.to_diff_dict(), f, indent=4)
 
+        # Dump the model config with defaults to disk
         with open(Path(args.output_dir, args.model_name_or_path, "model_config.json"), "w") as f:
             json.dump(config.to_dict(), f, indent=4)
 
@@ -234,7 +238,6 @@ def main():
         with open(Path(args.output_dir, args.model_name_or_path, "generation_config.json"), "w") as f:
             json.dump(generation_config.to_dict(), f, indent=4)
 
-    print("generation_config: ", generation_config)
 
     # Preprocessing the datasets.
     column_names = raw_datasets[args.dataset_split].column_names
