@@ -24,7 +24,7 @@ import os
 import logging
 from accelerate.logging import get_logger
 
-get_logger("transformers").setLevel(logging.WARNING)
+get_logger("transformers").setLevel(logging.ERROR)
 logger = get_logger(__name__)
 
 
@@ -253,7 +253,7 @@ def main():
     # Tokenize the data
     def tokenize_function(examples):        
         return tokenizer(examples[text_column_name])
-    
+    raw_datasets.cleanup_cache_files()
     with accelerator.main_process_first():
         tokenized_datasets = raw_datasets.map(
             tokenize_function,
