@@ -21,9 +21,10 @@ from transformers import (
     get_scheduler,
 )
 import os
+import logging
 from accelerate.logging import get_logger
 
-
+get_logger("transformers").setLevel(logging.WARNING)
 logger = get_logger(__name__)
 
 
