@@ -259,6 +259,15 @@ def main():
     # Tokenize the data
     def tokenize_function(examples):        
         return tokenizer(examples[text_column_name])
+    
+    def filter_function(examples):
+        res = []
+        for example in examples["input_ids"]:
+            if len(example) < min_input_length:
+                res.append(False)
+            else:
+                res.append(True)
+        return res
 
     with accelerator.main_process_first():
         tokenized_datasets = raw_datasets.map(
@@ -270,7 +279,7 @@ def main():
         )
 
         filtered_datasets = tokenized_datasets.filter(
-            lambda example: len(example["input_ids"]) >= min_input_length,
+            filter_function,
             batched=True,
             num_proc=args.preprocessing_num_workers,
             load_from_cache_file=not args.overwrite_cache,
