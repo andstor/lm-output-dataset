@@ -290,7 +290,9 @@ def main():
 
     # Prepare everything with `accelerator`.
     model, data_loader = accelerator.prepare(
-        model, data_loader, device_placement=[True, False])
+        model, data_loader)
+    #model, data_loader = accelerator.prepare(
+    #    model, data_loader, device_placement=[True, False])
 
     # save the data
     i = "{:05n}".format(accelerator.process_index + 1)
@@ -317,6 +319,9 @@ def main():
         # accelerator.print("Generating...")
         with torch.no_grad():
             # generate the data
+
+            print("generation_config")
+            print(generation_config)
 
             generated = model.generate(
                 input_ids=prompt_ids,
