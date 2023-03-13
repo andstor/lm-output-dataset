@@ -208,6 +208,15 @@ def main():
     )
     # model = model.to(accelerator.device) # TODO: check if this is needed
 
+    if args.generation_config_file is not None:
+        # read from file
+        with open(args.generation_config_file, "r") as f:
+            generation_config = json.load(f)
+            generation_config = GenerationConfig.from_dict(generation_config)
+    elif args.model_name_or_path:
+        generation_config = model.generation_config
+    
+
     # Write the model config and generation config to disk
     if accelerator.is_main_process:
         generation_config = {}
@@ -218,15 +227,6 @@ def main():
         with open(Path(args.output_dir, args.model_name_or_path, "model_config.json"), "w") as f:
             json.dump(config.to_dict(), f, indent=4)
 
-
-        if args.generation_config_file is not None:
-            # read from file
-            with open(args.generation_config_file, "r") as f:
-                generation_config = json.load(f)
-                generation_config = GenerationConfig.from_dict(generation_config)
-        elif args.model_name_or_path:
-            generation_config = model.generation_config
-        
         # Dump the generation config without defaults to disk
         with open(Path(args.output_dir, args.model_name_or_path, "generation_config_diff.json"), "w") as f:
             json.dump(generation_config.to_diff_dict(), f, indent=4)
@@ -234,7 +234,6 @@ def main():
         # Dump the generation config with defaults to disk
         with open(Path(args.output_dir, args.model_name_or_path, "generation_config.json"), "w") as f:
             json.dump(generation_config.to_dict(), f, indent=4)
-
 
     print("generation_config: ", generation_config)
 
