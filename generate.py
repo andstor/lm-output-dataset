@@ -259,7 +259,7 @@ def main():
     # Tokenize the data
     def tokenize_function(examples):        
         return tokenizer(examples[text_column_name])
-    raw_datasets.cleanup_cache_files()
+
     with accelerator.main_process_first():
         tokenized_datasets = raw_datasets.map(
             tokenize_function,
@@ -273,6 +273,7 @@ def main():
         filtered_datasets = tokenized_datasets.filter(
             lambda example: len(example["input_ids"]) >= min_input_length,
             num_proc=args.preprocessing_num_workers,
+            desc="Filtering min length",
         )
         # dataset = tokenized_datasets.with_format("torch", columns=[text_column], output_all_columns=True)
 
@@ -303,7 +304,7 @@ def main():
     i = "{:05n}".format(accelerator.process_index + 1)
     n = "{:05n}".format(accelerator.num_processes)
 
-    path = save_dir / f"{i}-of-{n}" + f".{args.dataset_split}.jsonl"
+    path = save_dir / (f"{i}-of-{n}" + f".{args.dataset_split}.jsonl")
     fp = open(path, 'w')
 
     # Only show the progress bar once on each machine.
