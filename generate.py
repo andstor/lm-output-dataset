@@ -155,6 +155,7 @@ def main():
         set_seed(args.seed)
 
 
+    save_dir = Path(args.output_dir, args.dataset_name, args.model_name_or_path, args.tag)
     # Write the generation config to disk
     if accelerator.is_main_process:
         if args.output_dir is not None:
@@ -162,7 +163,6 @@ def main():
             #safe_dataset_name = urllib.parse.quote(args.dataset_name, safe='')
             #urlencode args.dataset_name
             #safe_model_name = urllib.parse.quote(args.model_name_or_path, safe='')
-            save_dir = Path(args.output_dir, args.dataset_name, args.model_name_or_path, args.tag)
             save_dir.mkdir(parents=True, exist_ok=True)
         else:
             raise ValueError("Need a output directory.")
