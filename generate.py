@@ -155,7 +155,7 @@ def main():
         set_seed(args.seed)
 
 
-    save_dir = Path(args.output_dir, args.dataset_name, args.model_name_or_path, args.tag)
+    save_dir = Path(args.output_dir, args.dataset_name, args.model_name_or_path, args.dataset_config_name, args.tag)
     # Write the generation config to disk
     if accelerator.is_main_process:
         if args.output_dir is not None:
@@ -235,11 +235,11 @@ def main():
         print(generation_config)
 
         # Dump the model config without defaults to disk
-        with open( save_dir.parent / "model_config_diff.json", "w") as f:
+        with open( save_dir.parent.parent / "model_config_diff.json", "w") as f:
             json.dump(config.to_diff_dict(), f, indent=4)
 
         # Dump the model config with defaults to disk
-        with open(save_dir.parent / "model_config.json", "w") as f:
+        with open(save_dir.parent.parent / "model_config.json", "w") as f:
             json.dump(config.to_dict(), f, indent=4)
 
         # Dump the generation config without defaults to disk
