@@ -332,9 +332,9 @@ def main():
     for batch in data_loader:
         # tokenize the data
         # encodings = tokenizer(batch[text_column], return_tensors="pt", padding=True, truncation=True, max_length=max_input_length).to(device)
-        prompt_ids = batch["input_ids"][:, -max_input_length:][:, :args.max_new_tokens]
+        prompt_ids = batch["input_ids"][:, :-args.max_new_tokens][:, -max_input_length:]
         prompt_ids.to(accelerator.device)
-        attention_mask = batch["attention_mask"][:, -max_input_length:][:, :args.max_new_tokens]
+        attention_mask = batch["attention_mask"][:, :-args.max_new_tokens][:, -max_input_length:]
         attention_mask.to(accelerator.device)
 
         # accelerator.print("Generating...")
@@ -351,8 +351,11 @@ def main():
 
         # decode the data
         decoded_prompts = tokenizer.batch_decode(prompt_ids, skip_special_tokens=True)
-        outputs_ids = generated[:, -args.max_new_tokens:]
-        decoded_outputs = tokenizer.batch_decode(outputs_ids, skip_special_tokens=True)
+        generated_outputs_ids = generated[:, -args.max_new_tokens:]
+        decoded_generated_outputs = tokenizer.batch_decode(generated_outputs_ids, skip_special_tokens=True)
+        
+        original_output_ids = batch["input_ids"][:, -args.max_new_tokens:]
+        decoded_original_outputs = tokenizer.batch_decode(original_output_ids, skip_special_tokens=True)
 
         progress_bar.update(args.per_device_batch_size)
 
@@ -365,8 +368,9 @@ def main():
             #entry.pop('input_ids', None)
             #entry.pop('attention_mask', None)
             entry["prompt"] = decoded_prompts[index]
-            entry["output"] = decoded_outputs[index]
-            entry["ended"] = outputs_ids[index][-1].item() == tokenizer.eos_token_id
+            entry["original_output"] = decoded_original_outputs[index]
+            entry["generatet_output"] = decoded_generated_outputs[index]
+            entry["ended"] = generated_outputs_ids[index][-1].item() == tokenizer.eos_token_id
             fp.write(json.dumps(entry) + "\n")
             fp.flush()
 
