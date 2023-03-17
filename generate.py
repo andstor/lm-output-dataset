@@ -22,6 +22,7 @@ from transformers import (
 )
 import os
 import urllib.parse
+import numpy as np
 import logging
 from accelerate.logging import get_logger
 get_logger("transformers").setLevel(logging.ERROR)
@@ -122,11 +123,11 @@ def parse_args():
     parser.add_argument(
         "--max_new_tokens",
         type=int,
-        default=100,
+        default=None,
         help="The maximum number of new tokens to generate."
     )
     parser.add_argument(
-        "--max_input_length",
+        "--max_window_size",
         type=int,
         default=None,
         help="The maximum number of tokens in the input."
@@ -173,8 +174,6 @@ def main():
         with open( save_dir / "args.json", "w") as f:
             json.dump(args.__dict__, f, indent=4)
     
-    if args.max_input_length is None:
-        args.max_input_length = math.inf
 
         # 
     # Load the dataset
@@ -186,8 +185,11 @@ def main():
 
     if args.dataset_name is not None:
         # Downloading and loading a dataset from the hub.
-        raw_datasets = load_dataset(
-            args.dataset_name, args.dataset_config_name)
+        raw_datasets = load_dataset(args.dataset_name, args.dataset_config_name)
+
+        for split in raw_datasets:
+            indices = list(range(len(raw_datasets[split])))
+            raw_datasets[split] = raw_datasets[split].add_column("id", indices)
 
     # Load pretrained model and tokenizer
     #
@@ -227,8 +229,21 @@ def main():
         with open(args.generation_config_file, "r") as f:
             generation_config = json.load(f)
             generation_config = GenerationConfig.from_dict(generation_config)
+
+
     elif args.model_name_or_path:
         generation_config = model.generation_config
+        logger.warning(f"Using default generation config from model: {generation_config}")
+    
+    if args.max_new_tokens is not None:
+        generation_config.max_new_tokens = args.max_new_tokens
+
+    max_new_tokens = generation_config.max_new_tokens
+    if max_new_tokens == None:
+        raise ValueError("max_new_tokens is not set in the generation config.")
+    else:
+        logger.info(f"max_new_tokens are set to {max_new_tokens}")
+
 
     # Write the model config and generation config to disk
     if accelerator.is_main_process:
@@ -260,10 +275,15 @@ def main():
         text_column_name = "text" if "text" in column_names else column_names[0]
         logger.warning(f"Using column {text_column_name} as text column.")
 
-    max_input_length = min(args.max_input_length,
-                           model.config.max_position_embeddings)
-    max_input_length = max_input_length - args.max_new_tokens
-    min_input_length = args.max_new_tokens * 2 # TODO: check if this is a good value
+
+    max_input_length = args.max_window_size + max_new_tokens
+    if max_input_length > model.config.max_position_embeddings:
+        raise ValueError(
+            f"max_window_size ({args.max_window_size}) + max_new_tokens ({max_new_tokens}) is larger than the maximum position embedding size "
+            f"({model.config.max_position_embeddings})."
+        )
+    
+    min_input_length = args.max_window_size + max_new_tokens # TODO: check if this is a good value
     
     # Tokenize the data
     def tokenize_function(examples):        
@@ -277,6 +297,65 @@ def main():
             else:
                 res.append(True)
         return res
+    
+    def array_chunk_min_max(array, min_size, max_size):
+        l = len(array)
+        chunks, remainder = divmod(l, max_size)
+        if remainder > 0:
+            chunks += 1
+            # Increased chunks to "chunks"
+            if (l//chunks) < min_size:
+                # Reduced chunks to "chunks" because "l//chunks" < min_size
+                chunks -= 1
+                # Truncating remainder
+                array = array[:chunks*max_size]
+                
+            return np.array_split(array, chunks)
+        else:
+            return np.array_split(array, chunks)
+    
+
+    def array_chunk_max(array, max_size):
+        """
+        Splits an array into chunks of maximum size max_size.
+        The minimum size of the resulting chunks is l / math.ceil(l / max_size).
+        """
+        chunks, remainder = divmod(len(array), max_size)
+        if remainder > 0:
+            chunks += 1
+        return np.array_split(array, chunks)
+
+
+
+    def minibatch_function(examples, indices):
+        new_examples = {
+            "id": [],
+            "part": [],
+            "input_ids": [],
+            "attention_mask": [],
+            "original_input_ids": [],
+        }
+
+        for i, id in enumerate(indices):
+            input_ids = examples["input_ids"][i][:-max_new_tokens]
+            mask = examples["attention_mask"][i][:-max_new_tokens]
+            
+            minibatch_ids = array_chunk_max(input_ids, args.max_window_size)
+            minibatch_mask = array_chunk_max(mask, args.max_window_size)
+            
+            minibatch_size = len(minibatch_ids)
+            new_examples["id"].extend([id]*minibatch_size)
+            new_examples["part"].extend(list(zip(list(range(minibatch_size)), [minibatch_size]*minibatch_size)))
+            new_examples["input_ids"].extend(minibatch_ids)
+            new_examples["attention_mask"].extend(minibatch_mask)
+
+
+            original_input_ids = minibatch_ids[1:]
+            end_ids = examples["input_ids"][i][-max_new_tokens:]
+            original_input_ids.append(end_ids)
+            new_examples["original_input_ids"].extend(original_input_ids)
+        return new_examples
+
 
     with accelerator.main_process_first():
         tokenized_datasets = raw_datasets.map(
@@ -294,19 +373,24 @@ def main():
             load_from_cache_file=not args.overwrite_cache,
             desc="Filtering min length",
         )
-        # dataset = tokenized_datasets.with_format("torch", columns=[text_column], output_all_columns=True)
+        minibatch_datasets = filtered_datasets.map(
+            minibatch_function,
+            with_indices=True,
+            batched=True,
+            remove_columns=tokenized_datasets[args.dataset_split].column_names,
+            num_proc=args.preprocessing_num_workers,
+            load_from_cache_file=not args.overwrite_cache,
+            desc="Splitting records into minibatches",
+        )
+        #dataset = tokenized_datasets.with_format("torch", columns=[text_column], output_all_columns=True)
 
-    dataset = filtered_datasets[args.dataset_split]
-
-    # collate function
+    dataset = minibatch_datasets[args.dataset_split]
+    
     def data_collator(examples):
-        # first = examples[0]
-        # batch = {}
-        # for col in first.keys():
-        #    batch[col] = [d[col] for d in examples]
         batch = tokenizer.pad(examples)
         batch["input_ids"] = torch.tensor(batch["input_ids"])
         batch["attention_mask"] = torch.tensor(batch["attention_mask"])
+        #batch["original_input_ids"] = torch.tensor(batch["original_input_ids"])
 
         return batch
 
@@ -329,12 +413,15 @@ def main():
 
     # Only show the progress bar once on each machine.
     progress_bar = tqdm(range(len(data_loader) * args.per_device_batch_size), position=accelerator.process_index) #,disable=not accelerator.is_local_main_process)
+    i = 0
     for batch in data_loader:
-        # tokenize the data
-        # encodings = tokenizer(batch[text_column], return_tensors="pt", padding=True, truncation=True, max_length=max_input_length).to(device)
-        prompt_ids = batch["input_ids"][:, :-args.max_new_tokens][:, -max_input_length:]
+        #if i < 28:
+        #   i += 1
+        #   continue
+
+        prompt_ids = batch["input_ids"]
         prompt_ids.to(accelerator.device)
-        attention_mask = batch["attention_mask"][:, :-args.max_new_tokens][:, -max_input_length:]
+        attention_mask = batch["attention_mask"]
         attention_mask.to(accelerator.device)
 
         # accelerator.print("Generating...")
@@ -344,17 +431,16 @@ def main():
             generated = model.generate(
                 input_ids=prompt_ids,
                 attention_mask=attention_mask,
-                pad_token_id=tokenizer.eos_token_id,
+                #pad_token_id=tokenizer.eos_token_id,
                 generation_config=generation_config,
-                max_new_tokens=args.max_new_tokens,
+                #max_new_tokens=args.max_new_tokens,
             )
 
         # decode the data
         decoded_prompts = tokenizer.batch_decode(prompt_ids, skip_special_tokens=True)
-        generated_outputs_ids = generated[:, -args.max_new_tokens:]
+        generated_outputs_ids = generated[:, -max_new_tokens:]
         decoded_generated_outputs = tokenizer.batch_decode(generated_outputs_ids, skip_special_tokens=True)
-        
-        original_output_ids = batch["input_ids"][:, -args.max_new_tokens:]
+        original_output_ids = batch["original_input_ids"]
         decoded_original_outputs = tokenizer.batch_decode(original_output_ids, skip_special_tokens=True)
 
         progress_bar.update(args.per_device_batch_size)
@@ -364,12 +450,13 @@ def main():
             # print("saving..."):
             #colnames = batch.keys()
             #entry = {colname: batch[colname][index] for colname in colnames}
-            entry = {"text": batch[text_column_name][index]}
+            entry = {"id": batch["id"][index], "part": batch["part"][index]}
+            #entry = {"text": batch[text_column_name][index]}
             #entry.pop('input_ids', None)
             #entry.pop('attention_mask', None)
             entry["prompt"] = decoded_prompts[index]
             entry["original_output"] = decoded_original_outputs[index]
-            entry["generatet_output"] = decoded_generated_outputs[index]
+            entry["generated_output"] = decoded_generated_outputs[index]
             entry["ended"] = generated_outputs_ids[index][-1].item() == tokenizer.eos_token_id
             fp.write(json.dumps(entry) + "\n")
             fp.flush()
