@@ -431,7 +431,7 @@ def main():
             generated = model.generate(
                 input_ids=prompt_ids,
                 attention_mask=attention_mask,
-                #pad_token_id=tokenizer.eos_token_id,
+                pad_token_id=tokenizer.eos_token_id,
                 generation_config=generation_config,
                 #max_new_tokens=args.max_new_tokens,
             )
