@@ -333,7 +333,7 @@ def main():
             "part": [],
             "input_ids": [],
             "attention_mask": [],
-            "original_input_ids": [],
+            "reference_input_ids": [],
         }
 
         for i, id in enumerate(indices):
@@ -350,10 +350,10 @@ def main():
             new_examples["attention_mask"].extend(minibatch_mask)
 
 
-            original_input_ids = minibatch_ids[1:]
+            reference_input_ids = minibatch_ids[1:]
             end_ids = examples["input_ids"][i][-max_new_tokens:]
-            original_input_ids.append(end_ids)
-            new_examples["original_input_ids"].extend(original_input_ids)
+            reference_input_ids.append(end_ids)
+            new_examples["reference_input_ids"].extend(reference_input_ids)
         return new_examples
 
 
@@ -390,7 +390,6 @@ def main():
         batch = tokenizer.pad(examples)
         batch["input_ids"] = torch.tensor(batch["input_ids"])
         batch["attention_mask"] = torch.tensor(batch["attention_mask"])
-        #batch["original_input_ids"] = torch.tensor(batch["original_input_ids"])
 
         return batch
 
@@ -438,10 +437,10 @@ def main():
 
         # decode the data
         decoded_prompts = tokenizer.batch_decode(prompt_ids, skip_special_tokens=True)
-        generated_outputs_ids = generated[:, -max_new_tokens:]
-        decoded_generated_outputs = tokenizer.batch_decode(generated_outputs_ids, skip_special_tokens=True)
-        original_output_ids = batch["original_input_ids"]
-        decoded_original_outputs = tokenizer.batch_decode(original_output_ids, skip_special_tokens=True)
+        predicted_ids = generated[:, -max_new_tokens:]
+        decoded_predictions = tokenizer.batch_decode(predicted_ids, skip_special_tokens=True)
+        reference_ids = batch["reference_input_ids"]
+        decoded_reference = tokenizer.batch_decode(reference_ids, skip_special_tokens=True)
 
         progress_bar.update(args.per_device_batch_size)
 
@@ -455,9 +454,9 @@ def main():
             #entry.pop('input_ids', None)
             #entry.pop('attention_mask', None)
             entry["prompt"] = decoded_prompts[index]
-            entry["original_output"] = decoded_original_outputs[index]
-            entry["generated_output"] = decoded_generated_outputs[index]
-            entry["ended"] = generated_outputs_ids[index][-1].item() == tokenizer.eos_token_id
+            entry["reference"] = decoded_reference[index]
+            entry["prediction"] = decoded_predictions[index]
+            entry["ended"] = predicted_ids[index][-1].item() == tokenizer.eos_token_id
             fp.write(json.dumps(entry) + "\n")
             fp.flush()
 
