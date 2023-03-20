@@ -192,11 +192,10 @@ def main():
 
     if args.dataset_name is not None:
         # Downloading and loading a dataset from the hub.
-        raw_datasets = load_dataset(args.dataset_name, args.dataset_config_name)
+        raw_dataset = load_dataset(args.dataset_name, args.dataset_config_name, split=args.dataset_split)
 
-        for split in raw_datasets:
-            indices = list(range(len(raw_datasets[split])))
-            raw_datasets[split] = raw_datasets[split].add_column("id", indices)
+        indices = list(range(len(raw_dataset)))
+        raw_dataset = raw_dataset.add_column("id", indices)
 
     # Load pretrained model and tokenizer
     #
@@ -274,7 +273,7 @@ def main():
 
 
     # Preprocessing the datasets.
-    column_names = raw_datasets[args.dataset_split].column_names
+    column_names = raw_dataset.column_names
 
     if args.text_column_name is not None:
         text_column_name = args.text_column_name
@@ -355,8 +354,9 @@ def main():
             reference_input_ids.append(end_ids)
 
             minibatch_size = len(minibatch_ids)
+            sample_size = minibatch_size
             if args.subsamples is not None:
-                sample_size = min(args.subsamples, len(minibatch_ids))
+                sample_size = min(args.subsamples, minibatch_size)
 
             sample_indices = sorted(random.sample(range(minibatch_size), sample_size))
             minibatch_ids = [minibatch_ids[i] for i in sample_indices]
@@ -373,7 +373,7 @@ def main():
 
 
     with accelerator.main_process_first():
-        tokenized_datasets = raw_datasets.map(
+        tokenized_dataset = raw_dataset.map(
             tokenize_function,
             batched=True,
             num_proc=args.preprocessing_num_workers,
@@ -381,25 +381,25 @@ def main():
             desc="Running tokenizer on dataset",
         )
 
-        filtered_datasets = tokenized_datasets.filter(
+        filtered_dataset = tokenized_dataset.filter(
             filter_function,
             batched=True,
             num_proc=args.preprocessing_num_workers,
             load_from_cache_file=not args.overwrite_cache,
             desc="Filtering min length",
         )
-        minibatch_datasets = filtered_datasets.map(
+        minibatch_dataset = filtered_dataset.map(
             minibatch_function,
             with_indices=True,
             batched=True,
-            remove_columns=tokenized_datasets[args.dataset_split].column_names,
+            remove_columns=tokenized_dataset.column_names,
             num_proc=args.preprocessing_num_workers,
             load_from_cache_file=not args.overwrite_cache,
             desc="Splitting records into minibatches",
         )
         #dataset = tokenized_datasets.with_format("torch", columns=[text_column], output_all_columns=True)
 
-    dataset = minibatch_datasets[args.dataset_split]
+    dataset = minibatch_dataset
     
     def data_collator(examples):
         batch = tokenizer.pad(examples)
