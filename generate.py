@@ -24,6 +24,7 @@ import os
 import urllib.parse
 import numpy as np
 import logging
+import random
 from accelerate.logging import get_logger
 get_logger("transformers").setLevel(logging.ERROR)
 logger = get_logger(__name__)
@@ -131,6 +132,12 @@ def parse_args():
         type=int,
         default=None,
         help="The maximum number of tokens in the input."
+    )
+    parser.add_argument(
+        "--subsamples",
+        type=int,
+        default=None,
+        help="The number of subsamples to use from each data example. None means use all."
     )
 
     args = parser.parse_args()
@@ -342,10 +349,18 @@ def main():
             
             minibatch_ids = array_chunk_max(input_ids, args.max_window_size)
             minibatch_mask = array_chunk_max(mask, args.max_window_size)
-            
             minibatch_size = len(minibatch_ids)
-            new_examples["id"].extend([id]*minibatch_size)
-            new_examples["part"].extend(list(zip(list(range(minibatch_size)), [minibatch_size]*minibatch_size)))
+
+            if args.subsamples is not None:
+                sample_size = min(args.subsamples, len(minibatch_ids))
+
+            sample_indices = sorted(random.sample(range(minibatch_size), sample_size))
+            minibatch_ids = [minibatch_ids[i] for i in sample_indices]
+            minibatch_mask = [minibatch_mask[i] for i in sample_indices]
+            
+
+            new_examples["id"].extend([id]*sample_size)
+            new_examples["part"].extend(list(zip(sample_indices, [minibatch_size]*sample_size)))
             new_examples["input_ids"].extend(minibatch_ids)
             new_examples["attention_mask"].extend(minibatch_mask)
 

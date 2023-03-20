@@ -24,8 +24,9 @@ accelerate launch generate.py \
 --per_device_batch_size 8 \
 --output_dir output \
 --seed 42 \
---preprocessing_num_workers 2 \
+--preprocessing_num_workers 10 \
 --tag greedy \
+--subsamples 1 \
 --max_window_size 512 \
 --max_new_tokens 256
 ```
