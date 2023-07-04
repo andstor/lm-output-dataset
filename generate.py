@@ -1,27 +1,16 @@
-import math
 import torch
-import torch.nn.functional as F
 from datasets import load_dataset
-from transformers import AutoTokenizer, AutoModelForCausalLM, set_seed, GenerationConfig
+from transformers import AutoTokenizer, AutoModelForCausalLM, set_seed, GenerationConfig, AutoConfig
 from accelerate import Accelerator
 from torch.utils.data import DataLoader
 import json
 from pathlib import Path
 from tqdm import tqdm
-from typing import Optional
-from dataclasses import dataclass, field
 from transformers import (
-    CONFIG_MAPPING,
-    MODEL_MAPPING,
     AutoConfig,
     AutoModelForCausalLM,
     AutoTokenizer,
-    SchedulerType,
-    default_data_collator,
-    get_scheduler,
 )
-import os
-import urllib.parse
 import numpy as np
 import logging
 import random
@@ -249,9 +238,10 @@ def main():
         args.model_name_or_path,
         from_tf=bool(".ckpt" in args.model_name_or_path),
         config=config,
-        # device_map="auto" # buggy!!!
+        device_map="auto" # buggy!!!
     )
-    model.to(accelerator.device)
+    model.tie_weights()
+    #model.to(accelerator.device)
 
     generation_config = {}
     if args.generation_config_file is not None:
