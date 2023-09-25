@@ -238,7 +238,7 @@ def main():
         args.model_name_or_path,
         from_tf=bool(".ckpt" in args.model_name_or_path),
         config=config,
-        #device_map="auto" # buggy!!!
+        device_map="auto" # buggy!!!
     )
     model.tie_weights()
     #model.to(accelerator.device)
@@ -518,12 +518,7 @@ def main():
             entry["prompt"] = decoded_prompts[index]
             entry["reference"] = decoded_reference[index]
             entry["prediction"] = decoded_predictions[index]
-
-            if predicted_ids[index][-1].item() == tokenizer.eos_token_id:
-                entry["finish_reason"] = "stop"
-            else:
-                entry["finish_reason"] = "length"
-
+            entry["ended"] = predicted_ids[index][-1].item() == tokenizer.eos_token_id
             entry["meta"] = { "subset": args.dataset_config_name }
 
             # keep all "keep_columns":
