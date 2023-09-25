@@ -175,7 +175,7 @@ def main():
         set_seed(args.seed)
 
 
-    save_dir = Path(args.output_dir, args.dataset_name, args.model_name_or_path, args.dataset_config_name, args.tag)
+    save_dir = Path(args.output_dir, args.model_name_or_path, args.dataset_name, args.tag, args.dataset_config_name)
     # Write the generation config to disk
     if accelerator.is_main_process:
         if args.output_dir is not None:
@@ -238,7 +238,7 @@ def main():
         args.model_name_or_path,
         from_tf=bool(".ckpt" in args.model_name_or_path),
         config=config,
-        device_map="auto" # buggy!!!
+        #device_map="auto" # buggy!!!
     )
     model.tie_weights()
     #model.to(accelerator.device)
@@ -279,11 +279,11 @@ def main():
         print(generation_config)
 
         # Dump the model config without defaults to disk
-        with open( save_dir.parent.parent / "model_config_diff.json", "w") as f:
+        with open( Path(args.output_dir, args.model_name_or_path) / "model_config_diff.json", "w") as f:
             json.dump(config.to_diff_dict(), f, indent=4)
 
         # Dump the model config with defaults to disk
-        with open(save_dir.parent.parent / "model_config.json", "w") as f:
+        with open(Path(args.output_dir, args.model_name_or_path) / "model_config.json", "w") as f:
             json.dump(config.to_dict(), f, indent=4)
 
         # Dump the generation config without defaults to disk
@@ -518,7 +518,13 @@ def main():
             entry["prompt"] = decoded_prompts[index]
             entry["reference"] = decoded_reference[index]
             entry["prediction"] = decoded_predictions[index]
-            entry["ended"] = predicted_ids[index][-1].item() == tokenizer.eos_token_id
+
+            if predicted_ids[index][-1].item() == tokenizer.eos_token_id:
+                entry["finish_reason"] = "stop"
+            else:
+                entry["finish_reason"] = "length"
+
+            entry["meta"] = { "subset": args.dataset_config_name }
 
             # keep all "keep_columns":
             if args.keep_columns is not None:
